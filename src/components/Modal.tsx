@@ -19,86 +19,22 @@ import { addEventListener } from '../utils/addEventListener';
 import { BackHandler } from '../utils/BackHandler/BackHandler';
 import useAnimatedValue from '../utils/useAnimatedValue';
 
-export type Props = {
-  /**
-   * Determines whether clicking outside the modal dismiss it.
-   */
-  dismissable?: boolean;
-  /**
-   * Determines whether clicking Android hardware back button dismiss dialog.
-   */
-  dismissableBackButton?: boolean;
-  /**
-   * Callback that is called when the user dismisses the modal.
-   */
-  onDismiss?: () => void;
-  /**
-   * Accessibility label for the overlay. This is read by the screen reader when the user taps outside the modal.
-   */
-  overlayAccessibilityLabel?: string;
-  /**
-   * Determines Whether the modal is visible.
-   */
-  visible: boolean;
-  /**
-   * Content of the `Modal`.
-   */
-  children: React.ReactNode;
-  /**
-   * Style for the content of the modal
-   */
-  contentContainerStyle?: Animated.WithAnimatedValue<StyleProp<ViewStyle>>;
-  /**
-   * Style for the wrapper of the modal.
-   * Use this prop to change the default wrapper style or to override safe area insets with marginTop and marginBottom.
-   */
-  style?: StyleProp<ViewStyle>;
-  /**
-   * @optional
-   */
-  theme?: ThemeProp;
-  /**
-   * testID to be used on tests.
-   */
-  testID?: string;
-};
-
 const DEFAULT_DURATION = 220;
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-/**
- * The Modal component is a simple way to present content above an enclosing view.
- * To render the `Modal` above other components, you'll need to wrap it with the [`Portal`](./Portal) component.
- *
- * ## Usage
- * ```js
- * import * as React from 'react';
- * import { Modal, Portal, Text, Button, PaperProvider } from 'react-native-paper';
- *
- * const MyComponent = () => {
- *   const [visible, setVisible] = React.useState(false);
- *
- *   const showModal = () => setVisible(true);
- *   const hideModal = () => setVisible(false);
- *   const containerStyle = {backgroundColor: 'white', padding: 20};
- *
- *   return (
- *     <PaperProvider>
- *       <Portal>
- *         <Modal visible={visible} onDismiss={hideModal} contentContainerStyle={containerStyle}>
- *           <Text>Example Modal.  Click outside this area to dismiss.</Text>
- *         </Modal>
- *       </Portal>
- *       <Button style={{marginTop: 30}} onPress={showModal}>
- *         Show
- *       </Button>
- *     </PaperProvider>
- *   );
- * };
- *
- * export default MyComponent;
- * ```
- */
+export type ModalProps = {
+  dismissable?: boolean;
+  dismissableBackButton?: boolean;
+  onDismiss?: () => void;
+  overlayAccessibilityLabel?: string;
+  visible: boolean;
+  children: React.ReactNode;
+  contentContainerStyle?: Animated.WithAnimatedValue<StyleProp<ViewStyle>>;
+  style?: StyleProp<ViewStyle>;
+  theme?: ThemeProp;
+  testID?: string;
+};
+
 function Modal({
   dismissable = true,
   dismissableBackButton = dismissable,
@@ -110,7 +46,7 @@ function Modal({
   style,
   theme: themeOverrides,
   testID = 'modal',
-}: Props) {
+}: ModalProps) {
   const theme = useInternalTheme(themeOverrides);
   const visibleRef = React.useRef(visible);
 
@@ -119,13 +55,9 @@ function Modal({
   });
 
   const onDismissCallback = useLatestCallback(onDismiss);
-
   const { scale } = theme.animation;
-
   const { top, bottom } = useSafeAreaInsets();
-
   const opacity = useAnimatedValue(visible ? 1 : 0);
-
   const [rendered, setRendered] = React.useState(visible);
 
   if (visible && !rendered) {
@@ -142,27 +74,23 @@ function Modal({
   }, [opacity, scale]);
 
   const hideModal = React.useCallback(() => {
+    if (!rendered) return;
+    if (!visibleRef.current) return;
+
+    visibleRef.current = false;
+
     Animated.timing(opacity, {
       toValue: 0,
       duration: scale * DEFAULT_DURATION,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
-      if (!finished) {
-        return;
-      }
-
-      if (visible) {
+      if (finished) {
         onDismissCallback();
-      }
-
-      if (visibleRef.current) {
-        showModal();
-      } else {
         setRendered(false);
       }
     });
-  }, [onDismissCallback, opacity, scale, showModal, visible]);
+  }, [onDismissCallback, opacity, scale, rendered]);
 
   React.useEffect(() => {
     if (!visible) {
@@ -173,7 +101,6 @@ function Modal({
       if (dismissable || dismissableBackButton) {
         hideModal();
       }
-
       return true;
     };
 
@@ -182,6 +109,7 @@ function Modal({
       'hardwareBackPress',
       onHardwareBackPress
     );
+
     return () => subscription.remove();
   }, [dismissable, dismissableBackButton, hideModal, visible]);
 
@@ -212,8 +140,8 @@ function Modal({
       <AnimatedPressable
         accessibilityLabel={overlayAccessibilityLabel}
         accessibilityRole="button"
-        disabled={!dismissable}
-        onPress={dismissable ? hideModal : undefined}
+        disabled={!dismissable || !rendered}
+        onPress={dismissable && rendered ? hideModal : undefined}
         importantForAccessibility="no"
         style={[
           styles.backdrop,
@@ -245,8 +173,6 @@ function Modal({
   );
 }
 
-export default Modal;
-
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -255,9 +181,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
   },
-  // eslint-disable-next-line react-native/no-color-literals
   content: {
     backgroundColor: 'transparent',
     justifyContent: 'center',
   },
 });
+
+export default Modal;
